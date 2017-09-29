@@ -48,37 +48,37 @@ public class Indexer {
 
     public static void main(String[] args) throws IOException {
 
-        if (System.getProperty("sourcePath") != null) {
+        if (System.getProperty("sourceFolderPath") != null) {
 
             String language = System.getProperty("language", "en");
 
             String contentIDRegexPattern = getContentIDRegexPattern(System.getProperty("contentIDs"));
 
-            String stopwordsPath = System.getProperty("stopwordsPath");
-            String stopwordsRegexPattern = (stopwordsPath != null) ? StopwordsParser.getStopwordsRegexPattern(Paths.get(stopwordsPath)) : "";
+            String stopwordsFilePath = System.getProperty("stopwordsFilePath");
+            String stopwordsRegexPattern = (stopwordsFilePath != null) ? StopwordsParser.getStopwordsRegexPattern(Paths.get(stopwordsFilePath)) : "";
 
-            String punctuationPath = System.getProperty("punctuationPath");
-            String punctuationRegexPattern = (punctuationPath != null) ? PunctuationParser.getPunctuationRegexPattern(Paths.get(punctuationPath)) : DEFAULT_PUNCTUATION_REGEX_PATTERN;
+            String punctuationFilePath = System.getProperty("punctuationFilePath");
+            String punctuationRegexPattern = (punctuationFilePath != null) ? PunctuationParser.getPunctuationRegexPattern(Paths.get(punctuationFilePath)) : DEFAULT_PUNCTUATION_REGEX_PATTERN;
 
-            Indexer.execute(Paths.get(System.getProperty("sourcePath")), language, contentIDRegexPattern, stopwordsRegexPattern, punctuationRegexPattern);
+            Indexer.execute(Paths.get(System.getProperty("sourceFolderPath")), language, contentIDRegexPattern, stopwordsRegexPattern, punctuationRegexPattern);
 
         } else {
 
-            throw new RuntimeException("Specify at least the directory containing html files (sourcePath).\n"
+            throw new RuntimeException("Specify at least the directory containing html files (sourceFolderPath).\n"
                     + "Usage: java -jar indexer.jar \n"
-                    + "         -DsourcePath=output/html \n"
+                    + "         -DsourceFolderPath=output/html \n"
                     + "        [-Dlanguage=en] \n"
                     + "        [-DcontentIDs=header-content,body-content] \n"
-                    + "        [-DstopwordsPath=search/stopwords.js] \n"
-                    + "        [-DpunctuationPath=search/punctuation.js] \n"
+                    + "        [-DstopwordsFilePath=search/stopwords.js] \n"
+                    + "        [-DpunctuationFilePath=search/punctuation.js] \n"
                     + "The program will exit now."
             );
         }
     }
 
-    public static void execute(Path sourcePath, String language, String contentIDRegexPattern, String stopwordsRegexPattern, String punctuationRegexPattern) throws IOException {
+    public static void execute(Path sourceFolderPath, String language, String contentIDRegexPattern, String stopwordsRegexPattern, String punctuationRegexPattern) throws IOException {
 
-        Collection htmlPathCollection = getHtmlPathCollection(sourcePath);
+        Collection htmlPathCollection = getHtmlPathCollection(sourceFolderPath);
 
         if (htmlPathCollection.isEmpty()) {
             return;
@@ -101,14 +101,14 @@ public class Indexer {
 
         if (!indicesMap.isEmpty()) {
 
-            Path outputPath = sourcePath.resolve(OUTPUT_FOLDER_NAME);
+            Path outputFolderPath = sourceFolderPath.resolve(OUTPUT_FOLDER_NAME);
 
-            if (Files.notExists(outputPath)) {
-                Files.createDirectories(outputPath);
+            if (Files.notExists(outputFolderPath)) {
+                Files.createDirectories(outputFolderPath);
             }
 
-            writeFileInfoList(sourcePath, outputPath.resolve(FILE_INFO_LIST_NAME), fileInfoMap);
-            writeIndices(indicesMap, outputPath);
+            writeFileInfoList(sourceFolderPath, outputFolderPath.resolve(FILE_INFO_LIST_NAME), fileInfoMap);
+            writeIndices(indicesMap, outputFolderPath);
         }
     }
 
@@ -129,11 +129,11 @@ public class Indexer {
         return contentIDRegexPattern;
     }
 
-    private static Collection<Path> getHtmlPathCollection(Path sourcePath) throws IOException {
+    private static Collection<Path> getHtmlPathCollection(Path sourceFolderPath) throws IOException {
 
         Collection<Path> htmlPathColection = new HashSet<>();
 
-        Files.walkFileTree(sourcePath, new SimpleFileVisitor<Path>() {
+        Files.walkFileTree(sourceFolderPath, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(Path path, BasicFileAttributes attrs) throws IOException {
                 if (path.toString().endsWith(".html")) {
@@ -146,9 +146,9 @@ public class Indexer {
         return htmlPathColection;
     }
 
-    private static void writeFileInfoList(Path sourcePath, Path outputPath, Map<Path, FileInfo> fileInfoMap) throws IOException {
+    private static void writeFileInfoList(Path sourceFolderPath, Path outputFilePath, Map<Path, FileInfo> fileInfoMap) throws IOException {
 
-        try (BufferedWriter writer = Files.newBufferedWriter(outputPath)) {
+        try (BufferedWriter writer = Files.newBufferedWriter(outputFilePath)) {
 
             writer.write("fil = new Array();\n");
 
@@ -162,13 +162,13 @@ public class Indexer {
                     title = title.replaceAll("['�\"]", " ");
                     title = title.replaceAll("\\\\", "\\\\\\\\");
                 }
-                writer.write("fil[\"" + i + "\"] = \"" + sourcePath.relativize(entry.getKey()).toString().replace("\\", "/") + "@@@" + title + "\";\n");
+                writer.write("fil[\"" + i + "\"] = \"" + sourceFolderPath.relativize(entry.getKey()).toString().replace("\\", "/") + "@@@" + title + "\";\n");
                 i++;
             }
         }
     }
 
-    private static void writeIndices(Map<String, String> indicesMap, Path outputPath) throws IOException {
+    private static void writeIndices(Map<String, String> indicesMap, Path outputFolderPath) throws IOException {
 
         List<String> keyList = new ArrayList(indicesMap.keySet());
         Collections.sort(keyList);
@@ -177,7 +177,7 @@ public class Indexer {
 
         for (int i = 0; i < 3; i++) {
 
-            try (BufferedWriter writer = Files.newBufferedWriter(outputPath.resolve("index-" + (i + 1) + ".js"))) {
+            try (BufferedWriter writer = Files.newBufferedWriter(outputFolderPath.resolve("index-" + (i + 1) + ".js"))) {
 
                 int upperBound = Math.min(keyList.size(), i * size + size);
 
