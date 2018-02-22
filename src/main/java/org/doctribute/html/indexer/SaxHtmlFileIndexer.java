@@ -31,15 +31,7 @@ import java.util.Map.Entry;
 import org.doctribute.html.indexer.model.ContentInfo;
 import org.doctribute.html.indexer.model.FileInfo;
 import org.doctribute.html.indexer.model.WordInfo;
-import org.tartarus.snowball.SnowballStemmer;
-import org.tartarus.snowball.ext.CzechStemmer;
-import org.tartarus.snowball.ext.DutchStemmer;
-import org.tartarus.snowball.ext.EnglishStemmer;
-import org.tartarus.snowball.ext.FrenchStemmer;
-import org.tartarus.snowball.ext.GermanStemmer;
-import org.tartarus.snowball.ext.ItalianStemmer;
-import org.tartarus.snowball.ext.PortugueseStemmer;
-import org.tartarus.snowball.ext.SpanishStemmer;
+import org.tartarus.snowball.SnowballProgram;
 
 public class SaxHtmlFileIndexer extends SaxHtmlFileParser {
 
@@ -53,42 +45,24 @@ public class SaxHtmlFileIndexer extends SaxHtmlFileParser {
     private final static int SCORING_FOR_ITALIC = 3;
     private final static int SCORING_FOR_NORMAL_TEXT = 1;
 
-    private final SnowballStemmer stemmer;
-    private final Map<String, String> indicesMap;
+    private final SnowballProgram stemmer;
     private final String stopwordsRegexPattern;
     private final String punctuationRegexPattern;
+    private final Map<String, String> indicesMap;
     private int i = 0;
 
-    public SaxHtmlFileIndexer(Map<String, String> indicesMap, String indexerLanguage, String stopwordsRegexPattern, String punctuationRegexPattern) {
+    public SaxHtmlFileIndexer(SnowballProgram stemmer, String stopwordsRegexPattern, String punctuationRegexPattern, Map<String, String> indicesMap) {
+
         super();
 
         // prefer TagSoup parser to enable processing even invalid HTML files
         System.setProperty("org.xml.sax.driver", "org.ccil.cowan.tagsoup.Parser");
         System.setProperty("javax.xml.parsers.SAXParserFactory", "org.ccil.cowan.tagsoup.jaxp.SAXFactoryImpl");
 
-        if (indexerLanguage.equalsIgnoreCase("en")) {
-            stemmer = new EnglishStemmer();
-        } else if (indexerLanguage.equalsIgnoreCase("cs")) {
-            stemmer = new CzechStemmer();
-        } else if (indexerLanguage.equalsIgnoreCase("de")) {
-            stemmer = new GermanStemmer();
-        } else if (indexerLanguage.equalsIgnoreCase("es")) {
-            stemmer = new SpanishStemmer();
-        } else if (indexerLanguage.equalsIgnoreCase("fr")) {
-            stemmer = new FrenchStemmer();
-        } else if (indexerLanguage.equalsIgnoreCase("it")) {
-            stemmer = new ItalianStemmer();
-        } else if (indexerLanguage.equalsIgnoreCase("nl")) {
-            stemmer = new DutchStemmer();
-        } else if (indexerLanguage.equalsIgnoreCase("pt")) {
-            stemmer = new PortugueseStemmer();
-        } else {
-            stemmer = null;
-        }
-
-        this.indicesMap = indicesMap;
+        this.stemmer = stemmer;
         this.stopwordsRegexPattern = stopwordsRegexPattern;
         this.punctuationRegexPattern = punctuationRegexPattern;
+        this.indicesMap = indicesMap;
     }
 
     @Override

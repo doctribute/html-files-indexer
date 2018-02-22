@@ -38,8 +38,15 @@ import java.util.Map.Entry;
 import org.doctribute.html.indexer.model.FileInfo;
 import org.doctribute.html.indexer.util.StopwordsParser;
 import org.doctribute.html.indexer.util.PunctuationParser;
+import org.tartarus.snowball.SnowballProgram;
 
 public class Indexer {
+
+    private static final String PARAM_SOURCE_FOLDER_PATH = "-sourceFolderPath";
+    private static final String PARAM_STEMMER_CLASS_NAME = "-stemmerClassName";
+    private static final String PARAM_CONTENT_IDS = "-contentIDs";
+    private static final String PARAM_STOPWORDS_FILE_PATH = "-stopwordsFilePath";
+    private static final String PARAM_PUNCTUATION_FILE_PATH = "-punctuationFilePath";
 
     private static final String OUTPUT_FOLDER_NAME = "search";
     private static final String FILE_INFO_LIST_NAME = "file-info-list.js";
@@ -48,35 +55,65 @@ public class Indexer {
 
     public static void main(String[] args) throws IOException {
 
-        if (System.getProperty("sourceFolderPath") != null) {
+        Map<String, String> passedValuesMap = new HashMap<>();
 
-            String language = System.getProperty("language", "en");
+        for (String arg : args) {
+            int index = arg.indexOf(":");
+            if (index > 0 && index < arg.length() - 1) {
+                passedValuesMap.put(arg.substring(0, index), arg.substring(index + 1));
+            }
+        }
 
-            String contentIDRegexPattern = getContentIDRegexPattern(System.getProperty("contentIDs"));
+        if (passedValuesMap.containsKey(PARAM_SOURCE_FOLDER_PATH) && passedValuesMap.containsKey(PARAM_STEMMER_CLASS_NAME)) {
 
-            String stopwordsFilePath = System.getProperty("stopwordsFilePath");
-            String stopwordsRegexPattern = (stopwordsFilePath != null) ? StopwordsParser.getStopwordsRegexPattern(Paths.get(stopwordsFilePath)) : "";
+            SnowballProgram stemmer = null;
 
-            String punctuationFilePath = System.getProperty("punctuationFilePath");
-            String punctuationRegexPattern = (punctuationFilePath != null) ? PunctuationParser.getPunctuationRegexPattern(Paths.get(punctuationFilePath)) : DEFAULT_PUNCTUATION_REGEX_PATTERN;
+            try {
+                Class stemmerClass = Class.forName(passedValuesMap.get(PARAM_STEMMER_CLASS_NAME));
+                stemmer = (SnowballProgram) stemmerClass.newInstance();
 
-            Indexer.execute(Paths.get(System.getProperty("sourceFolderPath")), language, contentIDRegexPattern, stopwordsRegexPattern, punctuationRegexPattern);
+            } catch (ClassNotFoundException | IllegalAccessException | InstantiationException e) {
+                throw new IOException("The stemmer couldn't be initialized.", e);
+            }
+
+            Path sourceFolderPath = Paths.get(passedValuesMap.get(PARAM_SOURCE_FOLDER_PATH));
+
+            String contentIDRegexPattern = DEFAULT_CONTENT_ID_REGEX_PATTERN;
+
+            if (passedValuesMap.containsKey(PARAM_CONTENT_IDS)) {
+                contentIDRegexPattern = getContentIDRegexPattern(passedValuesMap.get(PARAM_CONTENT_IDS));
+            }
+
+            String stopwordsRegexPattern = "";
+
+            if (passedValuesMap.containsKey(PARAM_STOPWORDS_FILE_PATH)) {
+                stopwordsRegexPattern = StopwordsParser.getStopwordsRegexPattern(Paths.get(passedValuesMap.get(PARAM_STOPWORDS_FILE_PATH)));
+            }
+
+            String punctuationRegexPattern = DEFAULT_PUNCTUATION_REGEX_PATTERN;
+
+            if (passedValuesMap.containsKey(PARAM_PUNCTUATION_FILE_PATH)) {
+                punctuationRegexPattern = PunctuationParser.getPunctuationRegexPattern(Paths.get(passedValuesMap.get(PARAM_PUNCTUATION_FILE_PATH)));
+            }
+
+            execute(sourceFolderPath, contentIDRegexPattern, stemmer, stopwordsRegexPattern, punctuationRegexPattern);
 
         } else {
 
-            throw new RuntimeException("Specify at least the directory containing html files (sourceFolderPath).\n"
+            System.out.println("Specify at least:\n"
+                    + "- the directory containing html files (sourceFolderPath)\n"
+                    + "- the stemmer class name (stemmerClassName)\n\n"
                     + "Usage: java -jar indexer.jar \n"
-                    + "         -DsourceFolderPath=output/html \n"
-                    + "        [-Dlanguage=en] \n"
-                    + "        [-DcontentIDs=header-content,body-content] \n"
-                    + "        [-DstopwordsFilePath=search/stopwords.js] \n"
-                    + "        [-DpunctuationFilePath=search/punctuation.js] \n"
-                    + "The program will exit now."
+                    + "         -sourceFolderPath:output/html \n"
+                    + "         -stemmerClassName:org.tartarus.snowball.ext.EnglishStemmer \n"
+                    + "        [-contentIDs:header-content,body-content] \n"
+                    + "        [-stopwordsFilePath:search/stopwords.js] \n"
+                    + "        [-punctuationFilePath:search/punctuation.js]"
             );
         }
     }
 
-    public static void execute(Path sourceFolderPath, String language, String contentIDRegexPattern, String stopwordsRegexPattern, String punctuationRegexPattern) throws IOException {
+    public static void execute(Path sourceFolderPath, String contentIDRegexPattern, SnowballProgram stemmer, String stopwordsRegexPattern, String punctuationRegexPattern) throws IOException {
 
         Collection htmlPathCollection = getHtmlPathCollection(sourceFolderPath);
 
@@ -89,7 +126,7 @@ public class Indexer {
 
         Map<String, String> indicesMap = new HashMap<>();
 
-        SaxHtmlFileIndexer indexer = new SaxHtmlFileIndexer(indicesMap, language, stopwordsRegexPattern, punctuationRegexPattern);
+        SaxHtmlFileIndexer indexer = new SaxHtmlFileIndexer(stemmer, stopwordsRegexPattern, punctuationRegexPattern, indicesMap);
 
         Map<Path, FileInfo> fileInfoMap = new LinkedHashMap<>();
 
@@ -114,12 +151,11 @@ public class Indexer {
 
     private static String getContentIDRegexPattern(String delimitedContentIDs) {
 
-        String contentIDRegexPattern = DEFAULT_CONTENT_ID_REGEX_PATTERN;
+        String contentIDRegexPattern = "";
 
         if (delimitedContentIDs != null) {
-            String[] contentIDs = delimitedContentIDs.split(",");
 
-            contentIDRegexPattern = "";
+            String[] contentIDs = delimitedContentIDs.split(",");
 
             for (String contentID : contentIDs) {
                 contentIDRegexPattern += contentID + "|";
